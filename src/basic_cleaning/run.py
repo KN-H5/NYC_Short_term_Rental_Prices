@@ -1,103 +1,100 @@
 #!/usr/bin/env python
 """
-Download from W&B the raw dataset and apply some basic data cleaning, exporting the result to a new artifact
+Performs basic cleaning on the data and save the results in Weights & Biases
 """
 import argparse
 import logging
 import os
-
-import pandas as pd
 import wandb
+import pandas as pd
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
 
 
 def go(args):
+    """
+    Run basic cleaning on the data and save the results in Weights
+    """
     run = wandb.init(job_type="basic_cleaning")
     run.config.update(args)
 
     # Download input artifact. This will also log that this script is using this
     # particular version of the artifact
-    # artifact_local_path = run.use_artifact(args.input_artifact).file()
+    artifact_local_path = run.use_artifact(args.input_artifact).file()
 
-    logger.info("Downloading Artifact")
-    artifact_path = run.use_artifact(args.input_artifact).file()
-    df = pd.read_csv(artifact_path)
-
-    # Drop outliers
-    logger.info("Dropping outliers")
-    idx = df['price'].between(args.min_price, args.max_price)
-    df = df[idx].copy()
+    df = pd.read_csv(artifact_local_path, index_col="id")
+    indexes = df['price'].between(args.min_price, args.max_price)
+    df = df[indexes].copy()
+    logger.info(
+        f"Dataset price outliers removal outside range: {args.min_price}-{args.max_price}")
 
     # Convert last_review to datetime
-    logger.info("Converting last_review to datetime")
     df['last_review'] = pd.to_datetime(df['last_review'])
+    logger.info("Converted last_review to datetime")
 
-    # Drop rows in the dataset that are not in the proper geolocation
     idx = df['longitude'].between(-74.25, -73.50) & df['latitude'].between(40.5, 41.2)
     df = df[idx].copy()
 
-    # Save the cleaned dataset
-    logger.info("Saving the output artifact")
-    file_name = "clean_sample.csv"
-    df.to_csv(file_name, index=False)
+    df.to_csv("clean_sample.csv")
+    logger.info("Saved dataframe to local")
 
     artifact = wandb.Artifact(
         args.output_artifact,
         type=args.output_type,
         description=args.output_description,
     )
-    artifact.add_file(file_name)
-
-    logger.info("Logging artifact")
+    artifact.add_file("clean_sample.csv")
     run.log_artifact(artifact)
 
-    os.remove(file_name)
+    artifact.wait()
+    logger.info("Uploaded clean dataset to wandb!")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="A very basic data cleaning")
+
+    parser = argparse.ArgumentParser(description="This steps cleans the data")
 
     parser.add_argument(
         "--input_artifact",
         type=str,
-        help="Fully-qualified name for the input artifact",
+        help="The input artifact",
         required=True
     )
 
     parser.add_argument(
         "--output_artifact",
         type=str,
-        help="Name of the output artifact",
+        help="The name for the output artifact",
         required=True
     )
 
     parser.add_argument(
         "--output_type",
         type=str,
-        help="Type of the artifact",
+        help="The type for the output artifact",
         required=True
     )
 
     parser.add_argument(
         "--output_description",
         type=str,
-        help="Description for the artifact",
+        help="A description for the output artifact",
         required=True
     )
 
     parser.add_argument(
         "--min_price",
         type=float,
-        help="Minimum price for cleaning outliers",
+        help="The minimum price to consider",
         required=True
     )
 
     parser.add_argument(
         "--max_price",
         type=float,
-        help="Maximum price for cleaning outliers",
+        help="The maximum price to consider",
         required=True
     )
 
