@@ -44,11 +44,11 @@ def go(args):
     run.config.update(args)
 
     # Get the Random Forest configuration and update W&B
-    # with open(args.rf_config) as fp:
-    #     rf_config = json.load(fp)
-    
-    with open("./rf_config.json") as fp:
+    with open(args.rf_config) as fp:
         rf_config = json.load(fp)
+    
+    # with open("./rf_config.json") as fp:
+    #     rf_config = json.load(fp)
         
     run.config.update(rf_config)
 
